@@ -19,7 +19,7 @@
 
   d3.queue()
     .defer(d3.json, "data/boroughs.topojson")
-    .defer(d3.csv, "data/MTAGTFS/stops.txt", function(d) {
+    .defer(d3.csv, "data/MTAGTFS/stops.csv", function(d) {
       if (d.parent_station == "") {
         d.stop_lat = +d.stop_lat;
         d.stop_lon = +d.stop_lon;
