@@ -3,6 +3,14 @@
     height = 675 - margin.top - margin.bottom,
     width = 1000 - margin.left - margin.right;
 
+  var mymap = L.map('map').setView([40.73, -73.94], 12);
+
+  L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/light-v9/tiles/256/{z}/{x}/{y}?access_token=pk.eyJ1IjoiYWxleHdhaW5nZXIiLCJhIjoiY2l3MHR0cHNnMDlxdDJ6dGFndWNlaTlyMSJ9.doYPPIxLs6Uey35bzFRlEw', {
+    maxZoom: 16,
+    minZoom: 11,
+    id: 'NYCSubwayMapping'
+  }).addTo(mymap);
+/*
   var svg = d3.select("#map")
         .append("svg")
         .attr("height", height + margin.top + margin.bottom)
@@ -16,9 +24,9 @@
 
   var path = d3.geoPath()
     .projection(projection);
-
+*/
   d3.queue()
-    .defer(d3.json, "data/boroughs.topojson")
+  //  .defer(d3.json, "data/boroughs.topojson")
     .defer(d3.csv, "data/MTAGTFS/stops.csv", function(d) {
       if (d.parent_station == "") {
         d.stop_lat = +d.stop_lat;
@@ -26,38 +34,28 @@
         return d;
       }
     })
+    .defer(d3.csv, "data/MTAGTFS/shapes.csv")
     .await(ready)
 
-  function ready (error, newYork, stops) {
+  function ready (error, stops, shapes) {
 
-    var boroughs = topojson.feature(newYork, newYork.objects.collection).features;
 
-    svg.selectAll(".borough")
-        .data(boroughs)
-        .enter().append("path")
-        .attr("class", "borough")
-        .attr("d", path)
-        .attr("stroke", "black")
-        .attr("stroke-width", .25)
-        .attr("fill", "#e3e3e3");
+    stops.forEach(function(d) {
+      var circle = L.circle([d.stop_lat, d.stop_lon], {
+        color: 'red',
+        fillColor: 'red',
+        fillOpacity: 1,
+        radius: 1
+      }).addTo(mymap);
+    });
 
-    svg.selectAll(".stop")
-      .data(stops)
-      .enter().append("circle")
-      .attr("class", "stop")
-      .attr("r", 2)
-      .attr("fill", "red")
-      .attr("stroke", "#333333")
-      .attr("stroke-width", .5)
-      .attr("cx", function(d) {
-        // Taking lat, long coords and turning them into pixel coordinates on our screen
-        var coords = projection([d.stop_lon, d.stop_lat]);
-        return coords[0];
-      })
-      .attr("cy", function(d) {
-        var coords = projection([d.stop_lon, d.stop_lat]);
-        return coords[1];
-      });
+    var nested_shapes = d3.nest().key(function(d) {return d.shape_id}).entries(shapes);
+    console.log(nested_shapes);
+
+    for (i = 0; i < nested_shapes.length; i++) {
+      latlons = nested_shapes[i].values.map(function(d) { return new L.LatLng(d.shape_pt_lat, d.shape_pt_lon)});
+      var polyline = L.polyline(latlons, {color: '#'+(Math.random()*0xFFFFFF<<0).toString(16) }).addTo(mymap);
+    }
   }
 
 })();

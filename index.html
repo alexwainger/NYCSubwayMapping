@@ -1,6 +1,7 @@
 <!doctype html>
 <html>
   <head>
+     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.2/dist/leaflet.css" />
     <!-- The browser can use non-English-language characters (...kind of) -->
       <meta charset="utf-8">
       <style>
@@ -10,18 +11,24 @@
       p {
         font-size: 0.85em;
       }
+
+      #map {
+        height: 700px;
+      }
       </style>
   </head>
   <body>
     <div id="map"></div>
 
-    <!-- This is D3, our graphing library -->
+    <!-- D3 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.2.2/d3.min.js"></script>
 
-    <!-- A new library! Topojson! -->
+    <!-- Topojson -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/1.6.20/topojson.min.js"></script>
 
-    <!-- Now we include our actual visualization -->
+    <!-- Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.0.2/dist/leaflet.js"></script>
+
     <script src="js/map.js"></script>
   </body>
 </html>
