@@ -1,3 +1,7 @@
+/*** Much of this code is adapted from two Mike Bostock tutorials:
+ *** d3 with leaflet (https://bost.ocks.org/mike/leaflet/) 
+ *** point-along-path interpolation (http://bl.ocks.org/mbostock/1705868) */
+
 (function() {
   var margin = { top: 0, left: 0, right: 0, bottom: 0},
     height = 675 - margin.top - margin.bottom,
@@ -33,14 +37,13 @@
     subway_paths = g.selectAll(".subway_path")
       .data(shapes.features)
       .enter().append("path")
-      .attr("class", "subway_path");
+      .attr("class", "subway_path")
 
     mymap.on("viewreset", reset);
 
     reset();
 
     function reset() {
-      console.log("resetting");
         
       bounds = path.bounds(shapes);
 
@@ -56,35 +59,55 @@
                                        + -topLeft[1] + ")");
 
       subway_paths.attr("d", path)
-        .attr('stroke','blue')
-        .attr('fill', 'none');
+        .attr('stroke','none')
+        .attr('fill', 'none')
+        .attr('stroke-width', .5);
     }
 
     function projectPoint(x, y) {
       var point = mymap.latLngToLayerPoint(new L.LatLng(x, y));
       this.stream.point(point.x, point.y);
     }
-/*
-    stops.forEach(function(d) {
 
-      var circle = L.circle([d.stop_lat, d.stop_lon], {
-        color: 'red',
-        fillColor: 'red',
-        fillOpacity: 1,
-        radius: 1
-      }).addTo(mymap).bindPopup("My name is " + d.stop_name);
+    d3.selectAll('.subway_path').each(function(d, i) {
+        var a_path = d3.select(this);
+        var startPoint = pathStartPoint(a_path);
 
+      var marker = g.append("circle")
+        .attr("r", 4)
+        .attr("id", "marker" + i)
+        .attr("transform", "translate(" + startPoint + ")")
+        .attr("fill", "red");
+      
+      function transition() {
+        marker.transition()
+            .duration(30000)
+            .ease(d3.easeQuadInOut)
+            .attrTween("transform", translateAlong(a_path.node()))
+            .on("end", transition);
+      }
+
+      // Returns an attrTween for translating along the specified path element.
+      function translateAlong(b_path) {
+        var l = b_path.getTotalLength();
+        return function(d, i, a) {
+          return function(t) {
+            var p = b_path.getPointAtLength(t * l);
+            return "translate(" + p.x + "," + p.y + ")";
+          };
+        };
+      }
+
+      //Get path start point for placing marker
+      function pathStartPoint(path) {
+        var d = path.attr("d");
+        var dsplitted = d.split("L");
+        return dsplitted[0].substring(1);
+      }
+
+      transition();
     });
 
-    var nested_shapes = d3.nest().key(function(d) {return d.shape_id}).entries(shapes);
-    
-
-    for (i = 0; i < nested_shapes.length; i++) {
-      latlons = nested_shapes[i].values.map(function(d) { return new L.LatLng(d.shape_pt_lat, d.shape_pt_lon)});
-      var polyline = L.polyline(latlons, {color: '#'+(Math.random()*0xFFFFFF<<0).toString(16) }).addTo(mymap);
-    }
-
-*/
   }
 
 })();
