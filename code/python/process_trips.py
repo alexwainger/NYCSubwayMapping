@@ -1,10 +1,8 @@
 import csv
 
-test = ['trip_id', 'arrival_time', 'departure_time', 'stop_id', 'stop_sequence', 'stop_headsign', 'pickup_type', 'drop_off_type', 'shape_dist_traveled']
-
 def main():
 
-	# Trims down stop times file, 
+	# Trims down stop times file, only keeps start and end of trip
 	with open("data/MTAGTFS/stop_times.csv", "rb") as stop_times, open("data/MTAGTFS/stop_times_small.csv", "wb") as output:
 		reader = csv.reader(stop_times);
 		writer = csv.writer(output);
@@ -19,6 +17,7 @@ def main():
 
 		writer.writerow(last_line[0:3]);
 
+	# Adds boolean indicating whether or not there is a shape id associated with the trip
 	with open("data/MTAGTFS/stop_times_small.csv", "rb") as stop_times_small, open("data/MTAGTFS/trips.csv", "rb") as trips, open("data/MTAGTFS/stop_times_shapes_bool.csv", "wb") as output:
 		trips_reader = csv.reader(trips);
 		stops_reader = csv.reader(stop_times_small);
