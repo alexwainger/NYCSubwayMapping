@@ -1,5 +1,5 @@
 /*** Much of this code is adapted from two Mike Bostock tutorials:
- *** d3 with leaflet (https://bost.ocks.org/mike/leaflet/) 
+ *** d3 with leaflet (https://bost.ocks.org/mike/leaflet/)
  *** point-along-path interpolation (http://bl.ocks.org/mbostock/1705868) */
 
 (function() {
@@ -9,15 +9,24 @@
 
   var mymap = L.map('map').setView([40.73, -73.94], 12);
 
+  // RESIZE MAP
+  $(window).on("resize", function() {
+    $("#map").height($(window).height() - 15)
+    mymap.invalidateSize();
+  }).trigger("resize");
+
+  // MAPBOX TILES
   L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/light-v9/tiles/256/{z}/{x}/{y}?access_token=pk.eyJ1IjoiYWxleHdhaW5nZXIiLCJhIjoiY2l3MHR0cHNnMDlxdDJ6dGFndWNlaTlyMSJ9.doYPPIxLs6Uey35bzFRlEw', {
     maxZoom: 16,
     minZoom: 11,
     id: 'NYCSubwayMapping'
   }).addTo(mymap);
 
+  // CREATE SVG
   var svg = d3.select(mymap.getPanes().overlayPane).append("svg");
   var g = svg.append("g").attr("class", "leaflet-zoom-hide");
 
+  // LOAD DATA
   d3.queue()
     .defer(d3.csv, "data/MTAGTFS/stops.csv", function(d) {
       if (d.parent_station == "") {
@@ -29,6 +38,7 @@
     .defer(d3.json, "data/MTAGTFS/shapes.json")
     .await(ready)
 
+
   function ready (error, stops, shapes) {
 
     var transform = d3.geoTransform({point: projectPoint}),
@@ -38,6 +48,7 @@
       .data(shapes.features)
       .enter().append("path")
       .attr("class", "subway_path")
+      .attr("id", function(d) { return d.properties.shape_id})
 
     mymap.on("viewreset", reset);
 
@@ -61,7 +72,7 @@
       subway_paths.attr("d", path)
         .attr('stroke','none')
         .attr('fill', 'none')
-        .attr('stroke-width', .5);
+        .attr('stroke-width', 0);
     }
 
     function projectPoint(x, y) {
@@ -69,13 +80,14 @@
       this.stream.point(point.x, point.y);
     }
 
+    // Marker Transition
     d3.selectAll('.subway_path').each(function(d, i) {
         var a_path = d3.select(this);
         var startPoint = pathStartPoint(a_path);
 
       var marker = g.append("circle")
         .attr("r", 4)
-        .attr("id", "marker" + i)
+        .attr("class", "marker")
         .attr("transform", "translate(" + startPoint + ")")
         .attr("fill", "red");
       
