@@ -28,18 +28,16 @@
 
   // LOAD DATA
   d3.queue()
-    .defer(d3.csv, "data/MTAGTFS/stops.csv", function(d) {
-      if (d.parent_station == "") {
-        d.stop_lat = +d.stop_lat;
-        d.stop_lon = +d.stop_lon;
+    .defer(d3.json, "data/MTAGTFS/shapes.json")
+    .defer(d3.csv, "data/MTAGTFS/stop_times_final_sorted.csv", function(d) {
+      if (d.trip_id.includes("WKD")) {
         return d;
       }
     })
-    .defer(d3.json, "data/MTAGTFS/shapes.json")
     .await(ready)
 
 
-  function ready (error, stops, shapes) {
+  function ready (error, shapes, stop_times) {
 
     var transform = d3.geoTransform({point: projectPoint}),
         path = d3.geoPath().projection(transform);
@@ -72,7 +70,7 @@
       subway_paths.attr("d", path)
         .attr('stroke','none')
         .attr('fill', 'none')
-        .attr('stroke-width', 0);
+        .attr('stroke-width', .5);
     }
 
     function projectPoint(x, y) {
