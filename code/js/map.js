@@ -30,7 +30,12 @@
   d3.queue()
     .defer(d3.json, "data/MTAGTFS/shapes.json")
     .defer(d3.csv, "data/MTAGTFS/stop_times_final_sorted.csv", function(d) {
-      if (d.trip_id.includes("WKD")) {
+      if (d.trip_id.includes("WKD") && d.has_shape == "True") {
+        if (d.color == "") {
+          d.color = "000000";
+        }
+        d.start_time = +d.start_time;
+        d.end_time = +d.end_time;
         return d;
       }
     })
@@ -39,6 +44,11 @@
 
   function ready (error, shapes, stop_times) {
 
+    function projectPoint(x, y) {
+      var point = mymap.latLngToLayerPoint(new L.LatLng(x, y));
+      this.stream.point(point.x, point.y);
+    }
+
     var transform = d3.geoTransform({point: projectPoint}),
         path = d3.geoPath().projection(transform);
 
@@ -46,14 +56,14 @@
       .data(shapes.features)
       .enter().append("path")
       .attr("class", "subway_path")
-      .attr("id", function(d) { return d.properties.shape_id})
+      .attr("id", function(d) { return "shape_" + d.properties.shape_id})
 
     mymap.on("viewreset", reset);
 
     reset();
 
     function reset() {
-        
+
       bounds = path.bounds(shapes);
 
       var topLeft = bounds[0],
@@ -64,7 +74,7 @@
         .style("left", topLeft[0] + "px")
         .style("top", topLeft[1] + "px");
 
-      g.attr("transform", "translate(" + -topLeft[0] + "," 
+      g.attr("transform", "translate(" + -topLeft[0] + ","
                                        + -topLeft[1] + ")");
 
       subway_paths.attr("d", path)
@@ -73,51 +83,92 @@
         .attr('stroke-width', .5);
     }
 
-    function projectPoint(x, y) {
-      var point = mymap.latLngToLayerPoint(new L.LatLng(x, y));
-      this.stream.point(point.x, point.y);
+    curr_time = 0;
+    lastTrainIndex = 0;
+    timeStep();
+
+    function timeStep() {
+      kickOffTrains();
+      updateTime();
+      setTimeout(function() { timeStep(); }, 500);
     }
 
-    // Marker Transition
-    d3.selectAll('.subway_path').each(function(d, i) {
-        var a_path = d3.select(this);
-        var startPoint = pathStartPoint(a_path);
+    function updateTime() {
+      curr_time += 30;
+      $("#time").html(secondsToReadableTime(curr_time));
+    }
 
-      var marker = g.append("circle")
-        .attr("r", 4)
-        .attr("class", "marker")
-        .attr("transform", "translate(" + startPoint + ")")
-        .attr("fill", "red");
-      
-      function transition() {
-        marker.transition()
-            .duration(30000)
-            .ease(d3.easeQuadInOut)
-            .attrTween("transform", translateAlong(a_path.node()))
-            .on("end", transition);
+    function secondsToReadableTime(time) {
+      curr_hour = Math.floor(curr_time / 3600);
+      curr_min = Math.floor((curr_time % 3600) / 60)
+      curr_sec = curr_time % 3600 % 60;
+      if (curr_hour)
+      if (curr_hour > 11) {
+
+      }
+    }
+
+    function kickOffTrains() {
+      markersToStart = [];
+      while (stop_times[lastTrainIndex].start_time <= curr_time) {
+        markersToStart.push(stop_times[lastTrainIndex]);
+        lastTrainIndex++;
       }
 
-      // Returns an attrTween for translating along the specified path element.
-      function translateAlong(b_path) {
-        var l = b_path.getTotalLength();
+      for (var i = 0; i < markersToStart.length; i++) {
+        train_obj = markersToStart[i];
+        path_id = "shape_" + train_obj.trip_id.split("_")[2];
+
+        function waitForElement() {
+          path_el = d3.select("[id='" + path_id + "']");
+          if (path_el.empty()) {
+            window.requestAnimationFrame(waitForElement);
+          } else {
+            //TODO Add actual transition time
+            startMarkerTransition(path_el, train_obj.color, 30000);
+          }
+        };
+
+        waitForElement();
+      }
+    }
+
+    function startMarkerTransition(path, color, duration) {
+      var startPoint = pathStartPoint(path);
+
+      var marker = g.append("circle")
+        .attr("r", 5)
+        .attr("class", "marker")
+        .attr("transform", "translate(" + startPoint + ")")
+        .attr("opacity", 0)
+        .attr("fill", "#" + color)
+        .transition().duration(1000)
+          .attr("opacity", 1)
+        .transition().duration(duration)
+        .ease(d3.easeQuadInOut)
+        .attrTween("transform", translateAlong(path.node()))
+        .on("end", function(d) {
+          d3.select(this).transition().duration(1000)
+            .attr("opacity", 0)
+            .remove();
+        });
+
+      function translateAlong(path) {
+        var l = path.getTotalLength();
         return function(d, i, a) {
           return function(t) {
-            var p = b_path.getPointAtLength(t * l);
+            var p = path.getPointAtLength(t * l);
             return "translate(" + p.x + "," + p.y + ")";
           };
         };
       }
 
-      //Get path start point for placing marker
       function pathStartPoint(path) {
         var d = path.attr("d");
         var dsplitted = d.split("L");
         return dsplitted[0].substring(1);
       }
-
-      transition();
-    });
-
+    }
   }
 
 })();
