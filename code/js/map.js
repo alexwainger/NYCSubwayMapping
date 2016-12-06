@@ -83,14 +83,14 @@
         .attr('stroke-width', .5);
     }
 
-    curr_time = 0;
+    curr_time = 21600;
     lastTrainIndex = 0;
     timeStep();
 
     function timeStep() {
       kickOffTrains();
       updateTime();
-      setTimeout(function() { timeStep(); }, 500);
+      setTimeout(function() { timeStep(); }, 250);
     }
 
     function updateTime() {
@@ -101,11 +101,24 @@
     function secondsToReadableTime(time) {
       curr_hour = Math.floor(curr_time / 3600);
       curr_min = Math.floor((curr_time % 3600) / 60)
-      curr_sec = curr_time % 3600 % 60;
-      if (curr_hour)
-      if (curr_hour > 11) {
-
+      toReturn = "";
+      if (curr_hour == 0) {
+        toReturn = "12:" 
+      } else {
+        toReturn = curr_hour + ":"
       }
+
+      if (curr_min < 10) {
+        toReturn += "0"
+      } toReturn += curr_min;
+
+      if (curr_hour > 11) {
+        toReturn += " pm";
+      } else {
+        toReturn += " am";
+      }
+
+      return toReturn;
     }
 
     function kickOffTrains() {
@@ -140,15 +153,13 @@
         .attr("r", 5)
         .attr("class", "marker")
         .attr("transform", "translate(" + startPoint + ")")
-        .attr("opacity", 0)
+        .attr("opacity", 1)
         .attr("fill", "#" + color)
-        .transition().duration(1000)
-          .attr("opacity", 1)
         .transition().duration(duration)
-        .ease(d3.easeQuadInOut)
+        .ease(d3.easeLinear)
         .attrTween("transform", translateAlong(path.node()))
         .on("end", function(d) {
-          d3.select(this).transition().duration(1000)
+          d3.select(this).transition().duration(500)
             .attr("opacity", 0)
             .remove();
         });
