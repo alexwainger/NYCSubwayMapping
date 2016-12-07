@@ -80,17 +80,17 @@
       subway_paths.attr("d", path)
         .attr('stroke','none')
         .attr('fill', 'none')
-        .attr('stroke-width', .5);
     }
 
-    curr_time = 21600;
+    curr_time = 0//21600;
     lastTrainIndex = 0;
+    timeFactor = 10;
     timeStep();
 
     function timeStep() {
       kickOffTrains();
       updateTime();
-      setTimeout(function() { timeStep(); }, 250);
+      setTimeout(function() { timeStep(); }, 500 / timeFactor);
     }
 
     function updateTime() {
@@ -104,6 +104,8 @@
       toReturn = "";
       if (curr_hour == 0) {
         toReturn = "12:" 
+      } else if (curr_hour > 12) {
+        toReturn = (curr_hour - 12) + ":"
       } else {
         toReturn = curr_hour + ":"
       }
@@ -131,14 +133,19 @@
       for (var i = 0; i < markersToStart.length; i++) {
         train_obj = markersToStart[i];
         path_id = "shape_" + train_obj.trip_id.split("_")[2];
+        duration = train_obj.end_time - train_obj.start_time;
+
+        // If end time is past midnight, add an artificial day to make the numbers right
+        if (duration < 0) {
+          duration += (3600 * 24)
+        }
 
         function waitForElement() {
           path_el = d3.select("[id='" + path_id + "']");
           if (path_el.empty()) {
             window.requestAnimationFrame(waitForElement);
           } else {
-            //TODO Add actual transition time
-            startMarkerTransition(path_el, train_obj.color, 30000);
+            startMarkerTransition(path_el, train_obj.color, duration * 1000 / (60 * timeFactor));
           }
         };
 
