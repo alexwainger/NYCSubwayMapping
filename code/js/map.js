@@ -17,8 +17,8 @@
 
   // MAPBOX TILES
   L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/light-v9/tiles/256/{z}/{x}/{y}?access_token=pk.eyJ1IjoiYWxleHdhaW5nZXIiLCJhIjoiY2l3MHR0cHNnMDlxdDJ6dGFndWNlaTlyMSJ9.doYPPIxLs6Uey35bzFRlEw', {
-    maxZoom: 16,
-    minZoom: 11,
+    maxZoom: 12,
+    minZoom: 12,
     id: 'NYCSubwayMapping'
   }).addTo(mymap);
 
@@ -31,9 +31,6 @@
     .defer(d3.json, "data/MTAGTFS/shapes.json")
     .defer(d3.csv, "data/MTAGTFS/stop_times_final_sorted.csv", function(d) {
       if (d.trip_id.includes("WKD") && d.has_shape == "True") {
-        if (d.color == "") {
-          d.color = "000000";
-        }
         d.start_time = +d.start_time;
         d.end_time = +d.end_time;
         return d;
@@ -43,6 +40,19 @@
 
 
   function ready (error, shapes, stop_times) {
+
+    shapes_set = new Set();
+    for (var i = 0; i < shapes.features.length; i++) {
+      shapes_set.add(shapes.features[i].properties.shape_id);
+    }
+
+    for (var i = 0; i < stop_times.length; i++) {
+      if (shapes_set.has(stop_times[i].trip_id.split("_")[2])) {
+        shapes_set.delete(stop_times[i].trip_id.split("_")[2]);
+      }
+    }
+
+    console.log(shapes_set)
 
     function projectPoint(x, y) {
       var point = mymap.latLngToLayerPoint(new L.LatLng(x, y));
@@ -78,13 +88,20 @@
                                        + -topLeft[1] + ")");
 
       subway_paths.attr("d", path)
-        .attr('stroke','none')
+        .attr('stroke', function(d) {
+          if (!shapes_set.has(d.properties.shape_id)) {
+            console.log(d.properties.shape_id);
+            return "blue";
+          } else {
+            return "none";
+          }
+        })
         .attr('fill', 'none')
     }
 
-    curr_time = 0//21600;
+    curr_time = 0;
     lastTrainIndex = 0;
-    timeFactor = 10;
+    timeFactor = 8;
     timeStep();
 
     function timeStep() {
@@ -157,17 +174,18 @@
       var startPoint = pathStartPoint(path);
 
       var marker = g.append("circle")
-        .attr("r", 5)
+        .attr("r", 0)
         .attr("class", "marker")
         .attr("transform", "translate(" + startPoint + ")")
-        .attr("opacity", 1)
         .attr("fill", "#" + color)
-        .transition().duration(duration)
+        .transition().duration(250)
+          .attr("r", 5)
+        .transition().duration(duration - 500)
         .ease(d3.easeLinear)
         .attrTween("transform", translateAlong(path.node()))
         .on("end", function(d) {
-          d3.select(this).transition().duration(500)
-            .attr("opacity", 0)
+          d3.select(this).transition().duration(250)
+            .attr("r", 0)
             .remove();
         });
 
