@@ -5,7 +5,11 @@
 (function() {
   var margin = { top: 0, left: 0, right: 0, bottom: 0},
     height = 675 - margin.top - margin.bottom,
-    width = 1000 - margin.left - margin.right;
+    width = 1000 - margin.left - margin.right,
+    curr_time = 0,
+    lastTrainIndex = 0,
+    timeFactor = 0,
+    dayOfWeek = "";
 
   var mymap = L.map('map').setView([40.73, -73.94], 12);
 
@@ -41,25 +45,10 @@
 
   function ready (error, shapes, stop_times) {
 
-    shapes_set = new Set();
-    for (var i = 0; i < shapes.features.length; i++) {
-      shapes_set.add(shapes.features[i].properties.shape_id);
-    }
-
-    for (var i = 0; i < stop_times.length; i++) {
-      if (shapes_set.has(stop_times[i].trip_id.split("_")[2])) {
-        shapes_set.delete(stop_times[i].trip_id.split("_")[2]);
-      }
-    }
-
-    console.log(shapes_set)
-
-    function projectPoint(x, y) {
+    var transform = d3.geoTransform({point: function(x, y) {
       var point = mymap.latLngToLayerPoint(new L.LatLng(x, y));
       this.stream.point(point.x, point.y);
-    }
-
-    var transform = d3.geoTransform({point: projectPoint}),
+    }}),
         path = d3.geoPath().projection(transform);
 
     subway_paths = g.selectAll(".subway_path")
@@ -69,6 +58,13 @@
       .attr("id", function(d) { return "shape_" + d.properties.shape_id})
 
     mymap.on("viewreset", reset);
+
+    $("#start").click(function() {
+      $("#startFormDiv").fadeOut();
+      timeFactor = $("#timeFactor").val();
+      dayOfWeek = $("#dayOfWeek").val();
+      timeStep();
+    });
 
     reset();
 
@@ -88,21 +84,9 @@
                                        + -topLeft[1] + ")");
 
       subway_paths.attr("d", path)
-        .attr('stroke', function(d) {
-          if (!shapes_set.has(d.properties.shape_id)) {
-            console.log(d.properties.shape_id);
-            return "blue";
-          } else {
-            return "none";
-          }
-        })
+        .attr('stroke', 'none')
         .attr('fill', 'none')
     }
-
-    curr_time = 0;
-    lastTrainIndex = 0;
-    timeFactor = 8;
-    timeStep();
 
     function timeStep() {
       kickOffTrains();
@@ -115,6 +99,65 @@
       $("#time").html(secondsToReadableTime(curr_time));
     }
 
+    function kickOffTrains() {
+      markersToStart = [];
+      while (stop_times[lastTrainIndex].start_time <= curr_time) {
+        markersToStart.push(stop_times[lastTrainIndex]);
+        lastTrainIndex++;
+      }
+
+      for (var i = 0; i < markersToStart.length; i++) {
+        train_obj = markersToStart[i];
+        path_id = "shape_" + train_obj.trip_id.split("_")[2];
+        duration = train_obj.end_time - train_obj.start_time;
+
+        // If end time is past midnight, add an artificial day to make the numbers right
+        if (duration < 0) {
+          duration += (3600 * 24)
+        }
+        
+        path_el = d3.select("[id='" + path_id + "']");
+        startMarkerTransition(path_el, train_obj.color, duration * 1000 / (60 * timeFactor));
+      }
+    }
+
+    function startMarkerTransition(path, color, duration) {
+      var startPoint = pathStartPoint(path);
+      var startStopDuration = Math.min(250, duration * .1);
+
+      var marker = g.append("circle")
+        .attr("r", 0)
+        .attr("class", "marker")
+        .attr("transform", "translate(" + startPoint + ")")
+        .attr("fill", "#" + color)
+        .transition().duration(startStopDuration)
+          .attr("r", 5)
+        .transition().duration(duration - (2 * startStopDuration))
+        .ease(d3.easeLinear)
+        .attrTween("transform", translateAlong(path.node()))
+        .on("end", function(d) {
+          d3.select(this).transition().duration(startStopDuration)
+            .attr("r", 0)
+            .remove();
+      });
+
+      function translateAlong(path) {
+        var l = path.getTotalLength();
+        return function(d, i, a) {
+          return function(t) {
+            var p = path.getPointAtLength(t * l);
+            return "translate(" + p.x + "," + p.y + ")";
+          };
+        };
+      }
+
+      function pathStartPoint(path) {
+        var d = path.attr("d");
+        var dsplitted = d.split("L");
+        return dsplitted[0].substring(1);
+      }
+    }
+  
     function secondsToReadableTime(time) {
       curr_hour = Math.floor(curr_time / 3600);
       curr_min = Math.floor((curr_time % 3600) / 60)
@@ -138,72 +181,6 @@
       }
 
       return toReturn;
-    }
-
-    function kickOffTrains() {
-      markersToStart = [];
-      while (stop_times[lastTrainIndex].start_time <= curr_time) {
-        markersToStart.push(stop_times[lastTrainIndex]);
-        lastTrainIndex++;
-      }
-
-      for (var i = 0; i < markersToStart.length; i++) {
-        train_obj = markersToStart[i];
-        path_id = "shape_" + train_obj.trip_id.split("_")[2];
-        duration = train_obj.end_time - train_obj.start_time;
-
-        // If end time is past midnight, add an artificial day to make the numbers right
-        if (duration < 0) {
-          duration += (3600 * 24)
-        }
-
-        function waitForElement() {
-          path_el = d3.select("[id='" + path_id + "']");
-          if (path_el.empty()) {
-            window.requestAnimationFrame(waitForElement);
-          } else {
-            startMarkerTransition(path_el, train_obj.color, duration * 1000 / (60 * timeFactor));
-          }
-        };
-
-        waitForElement();
-      }
-    }
-
-    function startMarkerTransition(path, color, duration) {
-      var startPoint = pathStartPoint(path);
-
-      var marker = g.append("circle")
-        .attr("r", 0)
-        .attr("class", "marker")
-        .attr("transform", "translate(" + startPoint + ")")
-        .attr("fill", "#" + color)
-        .transition().duration(250)
-          .attr("r", 5)
-        .transition().duration(duration - 500)
-        .ease(d3.easeLinear)
-        .attrTween("transform", translateAlong(path.node()))
-        .on("end", function(d) {
-          d3.select(this).transition().duration(250)
-            .attr("r", 0)
-            .remove();
-        });
-
-      function translateAlong(path) {
-        var l = path.getTotalLength();
-        return function(d, i, a) {
-          return function(t) {
-            var p = path.getPointAtLength(t * l);
-            return "translate(" + p.x + "," + p.y + ")";
-          };
-        };
-      }
-
-      function pathStartPoint(path) {
-        var d = path.attr("d");
-        var dsplitted = d.split("L");
-        return dsplitted[0].substring(1);
-      }
     }
   }
 
