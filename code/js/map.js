@@ -3,15 +3,17 @@
  *** point-along-path interpolation (http://bl.ocks.org/mbostock/1705868) */
 
 (function() {
-  var margin = { top: 0, left: 0, right: 0, bottom: 0},
-    height = 675 - margin.top - margin.bottom,
-    width = 1000 - margin.left - margin.right,
+    timesMargin = { "top": 40, "left": 15 },
+    height = 675,
+    width = 1000,
+    timesWidth = 225 - timesMargin.left,
+    timesHeight = 450 - timesMargin.top,
     curr_time = 0,
     lastTrainIndex = 0,
     timeFactor = 0,
     dayOfWeek = "WKD";
 
-  var mymap = L.map('map').setView([40.73, -73.94], 12);
+  var mymap = L.map('map').setView([40.73, -73.91], 12);
 
   // RESIZE MAP
   $(window).on("resize", function() {
@@ -30,6 +32,9 @@
   var svg = d3.select(mymap.getPanes().overlayPane).append("svg");
   var g = svg.append("g").attr("class", "leaflet-zoom-hide");
 
+  var timesSvg = d3.select("#trainTimesDiv").append("svg").attr("width",timesWidth).attr("height",timesHeight)
+  .append("g").attr("transform", "translate(" + timesMargin.left + "," + timesMargin.top + ")");
+
   // LOAD DATA
   d3.queue()
     .defer(d3.json, "data/MTAGTFS/shapes.json")
@@ -39,10 +44,25 @@
       d.has_shape = (d.has_shape == "True");
       return d;
     })
+    .defer(d3.csv, "data/MTAGTFS/routes.csv", function(d) {
+      if (!d.route_id.includes("X")) {
+        delete d.route_desc;
+        return d;
+      }
+    })
     .await(ready)
 
 
-  function ready (error, shapes, stop_times) {
+  function ready (error, shapes, stop_times, routes) {
+
+    var nested_routes = d3.nest()
+      .key(function(d) { return d.route_color})
+      .entries(routes)
+
+    var line_color = timesSvg.selectAll(".line_color").data(nested_routes)
+      .enter().append("g")
+      .attr("transform", function(d, i) {
+        return "translate(0," + (i * 35) + ")"; })
 
     tripsByDay = { "WKD": [], "SAT": [], "SUN":[] };
     for (var i = 0; i < stop_times.length; i++) {
@@ -87,6 +107,47 @@
       dayOfWeek = $("#dayOfWeek").val();
 
       timeStep();
+      drawIcons();
+    }
+
+    function drawIcons() {
+
+      timesSvg.append("text")
+      .attr("x", (timesWidth - timesMargin.left) / 2)
+      .attr("y", -20)
+      .attr("text-anchor", "middle")
+      .text("Average Wait Time");
+
+      line_color.each(function(d) {
+
+        var container = d3.select(this);
+
+        container.append("text")
+        .attr("text-anchor", "end")
+        .attr("x", timesWidth - timesMargin.left)
+        .text("hello!");
+
+        var icons = container.selectAll("train_icon")
+          .data(d.values).enter().append("g")
+          .attr("transform", function(d, i) {
+            return "translate(" + (i * 25) + ",0)"
+          });
+        
+        icons.append("circle")
+          .attr("fill", function(d) { return "#" + d.route_color})
+          .transition().duration(500)
+          .attr("r", 12);
+
+        icons.append("text")
+          .text(function(d) { return d.route_short_name})
+          .attr("y", 4)
+          .attr("fill", function(d) {return d.route_color == "FCCC0A" ? "black": "white" })
+          .attr("text-anchor", "middle")
+          .attr("font-size", "13px")
+          .attr("font-weight", "600")
+          .transition().duration(500)
+          .attr("opacity", 1);
+      })
     }
 
     function timeStep() {
