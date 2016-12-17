@@ -9,7 +9,7 @@
     curr_time = 0,
     lastTrainIndex = 0,
     timeFactor = 0,
-    dayOfWeek = "";
+    dayOfWeek = "WKD";
 
   var mymap = L.map('map').setView([40.73, -73.94], 12);
 
@@ -34,22 +34,27 @@
   d3.queue()
     .defer(d3.json, "data/MTAGTFS/shapes.json")
     .defer(d3.csv, "data/MTAGTFS/stop_times_final_sorted.csv", function(d) {
-      if (d.trip_id.includes("WKD") && d.has_shape == "True") {
-        d.start_time = +d.start_time;
-        d.end_time = +d.end_time;
-        return d;
-      }
+      d.start_time = +d.start_time;
+      d.end_time = +d.end_time;
+      d.has_shape = (d.has_shape == "True");
+      return d;
     })
     .await(ready)
 
 
   function ready (error, shapes, stop_times) {
 
+    tripsByDay = { "WKD": [], "SAT": [], "SUN":[] };
+    for (var i = 0; i < stop_times.length; i++) {
+      var day = stop_times[i].trip_id.split("_")[0].slice(-3);
+      tripsByDay[day].push(stop_times[i]);
+    }
+
     var transform = d3.geoTransform({point: function(x, y) {
       var point = mymap.latLngToLayerPoint(new L.LatLng(x, y));
       this.stream.point(point.x, point.y);
-    }}),
-        path = d3.geoPath().projection(transform);
+    }});
+    var path = d3.geoPath().projection(transform);
 
     subway_paths = g.selectAll(".subway_path")
       .data(shapes.features)
@@ -57,35 +62,31 @@
       .attr("class", "subway_path")
       .attr("id", function(d) { return "shape_" + d.properties.shape_id})
 
-    mymap.on("viewreset", reset);
+    bounds = path.bounds(shapes);
 
-    $("#start").click(function() {
+    var topLeft = bounds[0],
+      bottomRight = bounds[1];
+
+    svg.attr("width", bottomRight[0] - topLeft[0])
+      .attr("height", bottomRight[1] - topLeft[1])
+      .style("left", topLeft[0] + "px")
+      .style("top", topLeft[1] + "px");
+
+    g.attr("transform", "translate(" + -topLeft[0] + ","
+                                     + -topLeft[1] + ")");
+
+    subway_paths.attr("d", path)
+      .attr('stroke', 'none')
+      .attr('fill', 'none');
+
+    $("#start").click(startAnimation);
+
+    function startAnimation() {
       $("#startFormDiv").fadeOut();
       timeFactor = $("#timeFactor").val();
       dayOfWeek = $("#dayOfWeek").val();
+
       timeStep();
-    });
-
-    reset();
-
-    function reset() {
-
-      bounds = path.bounds(shapes);
-
-      var topLeft = bounds[0],
-        bottomRight = bounds[1];
-
-      svg.attr("width", bottomRight[0] - topLeft[0])
-        .attr("height", bottomRight[1] - topLeft[1])
-        .style("left", topLeft[0] + "px")
-        .style("top", topLeft[1] + "px");
-
-      g.attr("transform", "translate(" + -topLeft[0] + ","
-                                       + -topLeft[1] + ")");
-
-      subway_paths.attr("d", path)
-        .attr('stroke', 'none')
-        .attr('fill', 'none')
     }
 
     function timeStep() {
@@ -101,23 +102,26 @@
 
     function kickOffTrains() {
       markersToStart = [];
-      while (stop_times[lastTrainIndex].start_time <= curr_time) {
-        markersToStart.push(stop_times[lastTrainIndex]);
+      while (tripsByDay[dayOfWeek][lastTrainIndex].start_time <= curr_time) {
+        markersToStart.push(tripsByDay[dayOfWeek][lastTrainIndex]);
         lastTrainIndex++;
       }
 
       for (var i = 0; i < markersToStart.length; i++) {
         train_obj = markersToStart[i];
-        path_id = "shape_" + train_obj.trip_id.split("_")[2];
-        duration = train_obj.end_time - train_obj.start_time;
 
-        // If end time is past midnight, add an artificial day to make the numbers right
-        if (duration < 0) {
-          duration += (3600 * 24)
+        if (train_obj.has_shape) {
+          path_id = "shape_" + train_obj.trip_id.split("_")[2];
+          duration = train_obj.end_time - train_obj.start_time;
+
+          // If end time is past midnight, add an artificial day to make the numbers right
+          if (duration < 0) {
+            duration += (3600 * 24)
+          }
+          
+          path_el = d3.select("[id='" + path_id + "']");
+          startMarkerTransition(path_el, train_obj.color, duration * 1000 / (60 * timeFactor));
         }
-        
-        path_el = d3.select("[id='" + path_id + "']");
-        startMarkerTransition(path_el, train_obj.color, duration * 1000 / (60 * timeFactor));
       }
     }
 
