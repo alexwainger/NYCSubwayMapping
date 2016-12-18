@@ -15,6 +15,11 @@
         vertical-align: middle;
       }
 
+      #time {
+        margin-top:10px;
+        margin-bottom:0px;
+      }
+
       h1 {
         text-align: center;
         font-family: Roboto, sans-serif;
@@ -32,10 +37,9 @@
         left: 50%;
         -webkit-transform: translate(-50%, -50%);
         transform: translate(-50%, -50%);
-        height:400px;
-        width:600px;
-        opacity: .9;
-        padding:20px;
+        width:800px;
+        opacity: .85;
+        padding: 0px 20px;
         border-radius:15px;
       }
 
@@ -52,6 +56,34 @@
       #startForm {
         text-align: center;
       }
+
+      input[type="submit"]{
+        display: inline-block;
+        height: 38px;
+        padding: 0 30px;
+        text-align: center;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 38px;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        text-decoration: none;
+        white-space: nowrap;
+        border-radius: 4px;
+        border: 1px solid #bbb;
+        cursor: pointer;
+        box-sizing: border-box; 
+        color: #FFF;
+        background-color: #33C3F0;
+        border-color: #33C3F0; 
+      }
+      
+      input[type="submit"]:hover,
+      input[type="submit"]:focus {
+        color: #FFF;
+        background-color: #1EAEDB;
+        border-color: #1EAEDB; 
+      }
     </style>
   </head>
   <body>
@@ -63,9 +95,10 @@
     <div id="startFormDiv">
       <h1>A Week in the Life of 53,364 NYC Subways</h1>
       <p>Inspired by Chris Whong's <a href="http://chriswhong.github.io/nyctaxi/">NYC Taxis: A Day in the Life</a> project, this visualization uses GTFS data from the MTA to visualize the New York City subway system.</p>
-      <br>
-      <hr><br>
+      <p>Note: The MTA's dataset is missing the geographic data for certain lines, such as the 1, G, and W trains. These trains will not appear on the map, but their schedules are still taken into account in calculating wait times.</p>
+      <hr>
       <div id="startForm">
+        <h3>Options:</h3>
         <b>Speed: </b>   <input id="timeFactor" type="number" min="1" max="60" value="10" step="1" pattern="[0-9]|[1-5][0-9]|60"></input>   minutes per second<br>
         <b>Day of the week:</b>
         <select id="dayOfWeek">
@@ -73,7 +106,13 @@
           <option value="SAT">Saturday</option>
           <option value="SUN">Sunday</option>
         <select><br><br>
-        <button id="start">Start!</button>
+        <input id="start" type="submit" value="Start!"></input>
+        <br><br>
+        <hr>
+        <div id="footer" style="clear: both">
+          <h4 style="float: left; text-align: left;">Storytelling With Data, Columbia 2016</h4>
+          <h3 style="float: right; text-align: right;">By <a href="https://github.com/alexwainger" target="_blank">Alex Wainger</a></h3>
+        </div>
       </div>
     </div>
 
