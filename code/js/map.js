@@ -11,7 +11,8 @@
     curr_time = 0,
     lastTrainIndex = 0,
     timeFactor = 0,
-    dayOfWeek = "WKD";
+    dayOfWeek = "WKD",
+    interval = null;
 
   var mymap = L.map('map').setView([40.73, -73.91], 12);
 
@@ -64,7 +65,7 @@
 
     trainsOnTracks = {};
     for (var i = 0; i < routes.length; i++) {
-      trainsOnTracks[routes[i].route_id] = [];
+      trainsOnTracks[routes[i].route_id] = {"N":[], "S":[], "last_waitTime": Infinity };
     }
 
     /*** DRAWING SUBWAY PATHS ***/
@@ -106,8 +107,8 @@
       timeFactor = $("#timeFactor").val();
       dayOfWeek = $("#dayOfWeek").val();
 
-      timeStep();
       drawIcons();
+      interval = setInterval(timeStep, 500 / timeFactor);
     }
 
     /*** DRAW WAITING TIME ICONS ***/
@@ -119,7 +120,8 @@
         .attr("text-anchor", "middle")
         .attr("font-size", "18px")
         .text("Avg. Wait Time")
-        .style("text-decoration", "underline");
+        .style("text-decoration", "underline")
+        .style("font-weight", "500");
 
       var groups = timesSvg.selectAll(".icon_group").data(routes)
         .enter().append("g")
@@ -131,6 +133,7 @@
         .attr("text-anchor", "end")
         .attr("x", timesWidth - timesMargin.left - 20)
         .attr("y", 4)
+        .text("No trains");
 
       var icons = groups.append("g").attr("transform", "translate(25,0)");
       icons.append("circle")
@@ -144,22 +147,26 @@
         .attr("fill", function(d) {return d.route_color == "FCCC0A" ? "black": "white" })
         .attr("text-anchor", "middle")
         .attr("font-size", "10px")
-        .attr("font-weight", "600")
+        .attr("font-weight", "700")
         .transition().duration(500)
         .attr("opacity", 1);
     }
 
     /*** MOVES TIME FORWARD ***/
     function timeStep() {
-      updateTimes();
-      kickOffTrains();
-      cleanUpTrains();
-      setTimeout(function() { timeStep(); }, 500 / timeFactor);
-    }
+      if (lastTrainIndex >= tripsByDay[dayOfWeek].length) {
+        clearInterval(interval);
+      }
 
-    function updateTimes() {
+      kickOffTrains();
+
+      if ((curr_time % (60 * timeFactor)) == 0) {
+        updateWaitingTimes();
+      }
+
+      cleanUpTrains();
+
       curr_time += 30;
-      updateWaitingTimes();
       $("#time").html(secondsToReadableTime(curr_time));
     }
 
@@ -167,17 +174,47 @@
     function updateWaitingTimes() {
       for (var route_id in trainsOnTracks) {
         if (trainsOnTracks.hasOwnProperty(route_id)) {
-          trains = trainsOnTracks[route_id];
-          differences = 0;
-          for (var i = 1; i < trains.length; i++) {
-            differences += trains[i].start - trains[i - 1].start;
+          var last_wt = trainsOnTracks[route_id].last_waitTime;
+          var N_trains = trainsOnTracks[route_id].N;
+          var S_trains = trainsOnTracks[route_id].S;
+
+          var N_differences = 0;
+          for (var i = 1; i < N_trains.length; i++) {
+            N_differences += N_trains[i].start - N_trains[i - 1].start;
+          }
+          var S_differences = 0;
+          for (var i = 1; i < S_trains.length; i++) {
+            S_differences += S_trains[i].start - S_trains[i - 1].start;
           }
 
-          if (trains.length > 1) {
-            avg_difference = differences / (trains.length - 1) 
-            timesSvg.select("#wait_time_" + route_id).text((avg_difference / 60).toFixed(1) + " min");
-          } else {
+          var count = 0;
+          var avg_diff = 0;
+          var rounded_diff = Infinity;
+          var new_text = "No trains";
+          if (N_trains.length > 1) {
+            avg_diff += (N_differences / (N_trains.length - 1)) / 60;
+            count++;
+          }
+          if (S_trains.length > 1) {
+            avg_diff += (S_differences / (S_trains.length - 1)) / 60;
+            count++;
+          }
+
+          if (count == 0) {
             timesSvg.select("#wait_time_" + route_id).text("No trains");
+            trainsOnTracks[route_id].last_waitTime = Infinity;
+          } else {
+            avg_diff = avg_diff / count;
+            rounded_diff = Math.round( avg_diff * 10 ) / 10;
+
+            if (rounded_diff != last_wt) {
+              var color = rounded_diff < last_wt ? "green" : "red";
+              timesSvg.select("#wait_time_" + route_id).text(rounded_diff + " min")
+                  .attr("fill", color)
+                  .transition().duration(750)
+                  .attr("fill", "black")
+              trainsOnTracks[route_id].last_waitTime = rounded_diff;
+            }
           }
         }
       }
@@ -186,7 +223,7 @@
     /*** FIGURES OUT WHICH TRAINS STARTED IN THE LAST INTERVAL ***/
     function kickOffTrains() {
       markersToStart = [];
-      while (tripsByDay[dayOfWeek][lastTrainIndex].start_time <= curr_time) {
+      while (lastTrainIndex < tripsByDay[dayOfWeek].length && tripsByDay[dayOfWeek][lastTrainIndex].start_time <= curr_time) {
         markersToStart.push(tripsByDay[dayOfWeek][lastTrainIndex]);
         lastTrainIndex++;
       }
@@ -194,7 +231,9 @@
       for (var i = 0; i < markersToStart.length; i++) {
         train_obj = markersToStart[i];
 
-        trainsOnTracks[train_obj.route_id].push({"start": train_obj.start_time, "end": train_obj.end_time});
+        var direction_arr = train_obj.trip_id.split("_")[2].split(".");
+        var direction = direction_arr[direction_arr.length - 1][0];
+        trainsOnTracks[train_obj.route_id][direction].push({"start": train_obj.start_time, "end": train_obj.end_time});
 
         if (train_obj.has_shape) {
           duration = train_obj.end_time - train_obj.start_time;
@@ -212,12 +251,16 @@
 
     /*** REMOVES TRAINS THAT HAVE ENDED FROM THE WAIT TIME ARRAYS ***/
     function cleanUpTrains() {
+      var directions = ["N", "S"];
       for(var route_id in trainsOnTracks) {
         if (trainsOnTracks.hasOwnProperty(route_id)) {
-          trains = trainsOnTracks[route_id];
-          for (var i = trains.length - 1; i >= 0; i--) {
-            if (curr_time >= trains[i].end_time) {
-              trains.splice(i, 1);
+          for (var j = 0; j < directions.length; j++) {
+            var dir = directions[j];
+            trains = trainsOnTracks[route_id][dir];
+            for (var i = trains.length - 1; i >= 0; i--) {
+              if (curr_time >= trains[i].end + (60 * 30)) { // Keep trains for half an hour after they die
+                trains.splice(i, 1);
+              }
             }
           }
         }
@@ -264,7 +307,7 @@
   
     /*** MAKES THE TIME READABLE ***/
     function secondsToReadableTime(time) {
-      curr_hour = Math.floor(curr_time / 3600);
+      curr_hour = Math.floor(curr_time / 3600) % 24;
       curr_min = Math.floor((curr_time % 3600) / 60)
       toReturn = "";
       if (curr_hour == 0) {
