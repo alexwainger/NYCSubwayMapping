@@ -102,13 +102,18 @@
     $("#start").click(startAnimation);
 
     function startAnimation() {
-      $("#startFormDiv").fadeOut();
-      $("#sidebar").fadeIn();
       timeFactor = $("#timeFactor").val();
       dayOfWeek = $("#dayOfWeek").val();
 
-      drawIcons();
-      interval = setInterval(timeStep, 500 / timeFactor);
+      if (timeFactor < 1 || timeFactor > 60) {
+        alert("Please enter a speed between 1 and 60.");
+      } else {
+        $("#startFormDiv").fadeOut();
+        $("#sidebar").fadeIn();
+
+        drawIcons();
+        interval = setInterval(timeStep, 500 / timeFactor);
+      }
     }
 
     /*** DRAW WAITING TIME ICONS ***/
