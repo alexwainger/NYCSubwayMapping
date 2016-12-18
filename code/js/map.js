@@ -3,11 +3,11 @@
  *** point-along-path interpolation (http://bl.ocks.org/mbostock/1705868) */
 
 (function() {
-    timesMargin = { "top": 40, "left": 15 },
+    timesMargin = { "top": 40, "left": 30},
     height = 675,
     width = 1000,
-    timesWidth = 225 - timesMargin.left,
-    timesHeight = 450 - timesMargin.top,
+    timesWidth = 200 - timesMargin.left,
+    timesHeight = 625 - timesMargin.top,
     curr_time = 0,
     lastTrainIndex = 0,
     timeFactor = 0,
@@ -28,7 +28,7 @@
     id: 'NYCSubwayMapping'
   }).addTo(mymap);
 
-  // CREATE SVG
+  // CREATE SVGS
   var svg = d3.select(mymap.getPanes().overlayPane).append("svg");
   var g = svg.append("g").attr("class", "leaflet-zoom-hide");
 
@@ -55,21 +55,19 @@
 
   function ready (error, shapes, stop_times, routes) {
 
-    var nested_routes = d3.nest()
-      .key(function(d) { return d.route_color})
-      .entries(routes)
-
-    var line_color = timesSvg.selectAll(".line_color").data(nested_routes)
-      .enter().append("g")
-      .attr("transform", function(d, i) {
-        return "translate(0," + (i * 35) + ")"; })
-
+    /*** SETTING UP DAY NESTING AND TRAINS ON TRACKS ***/
     tripsByDay = { "WKD": [], "SAT": [], "SUN":[] };
     for (var i = 0; i < stop_times.length; i++) {
       var day = stop_times[i].trip_id.split("_")[0].slice(-3);
       tripsByDay[day].push(stop_times[i]);
     }
 
+    trainsOnTracks = {};
+    for (var i = 0; i < routes.length; i++) {
+      trainsOnTracks[routes[i].route_id] = [];
+    }
+
+    /*** DRAWING SUBWAY PATHS ***/
     var transform = d3.geoTransform({point: function(x, y) {
       var point = mymap.latLngToLayerPoint(new L.LatLng(x, y));
       this.stream.point(point.x, point.y);
@@ -99,10 +97,12 @@
       .attr('stroke', 'none')
       .attr('fill', 'none');
 
+    /*** EVENT HANDLER TO START ANIMATION ***/
     $("#start").click(startAnimation);
 
     function startAnimation() {
       $("#startFormDiv").fadeOut();
+      $("#sidebar").fadeIn();
       timeFactor = $("#timeFactor").val();
       dayOfWeek = $("#dayOfWeek").val();
 
@@ -110,57 +110,80 @@
       drawIcons();
     }
 
+    /*** DRAW WAITING TIME ICONS ***/
     function drawIcons() {
 
       timesSvg.append("text")
-      .attr("x", (timesWidth - timesMargin.left) / 2)
-      .attr("y", -20)
-      .attr("text-anchor", "middle")
-      .text("Average Wait Time");
+        .attr("x", (timesWidth - timesMargin.left) / 2)
+        .attr("y", -20)
+        .attr("text-anchor", "middle")
+        .attr("font-size", "18px")
+        .text("Avg. Wait Time")
+        .style("text-decoration", "underline");
 
-      line_color.each(function(d) {
+      var groups = timesSvg.selectAll(".icon_group").data(routes)
+        .enter().append("g")
+        .attr("transform", function(d, i) {
+          return "translate(0," + (i * 20) + ")"; })
 
-        var container = d3.select(this);
-
-        container.append("text")
+      groups.append("text")
+        .attr("id", function(d) { return "wait_time_" + d.route_id})
         .attr("text-anchor", "end")
-        .attr("x", timesWidth - timesMargin.left)
-        .text("hello!");
+        .attr("x", timesWidth - timesMargin.left - 20)
+        .attr("y", 4)
 
-        var icons = container.selectAll("train_icon")
-          .data(d.values).enter().append("g")
-          .attr("transform", function(d, i) {
-            return "translate(" + (i * 25) + ",0)"
-          });
-        
-        icons.append("circle")
-          .attr("fill", function(d) { return "#" + d.route_color})
-          .transition().duration(500)
-          .attr("r", 12);
+      var icons = groups.append("g").attr("transform", "translate(25,0)");
+      icons.append("circle")
+        .attr("fill", function(d) { return "#" + d.route_color})
+        .transition().duration(500)
+        .attr("r", 10);
 
-        icons.append("text")
-          .text(function(d) { return d.route_short_name})
-          .attr("y", 4)
-          .attr("fill", function(d) {return d.route_color == "FCCC0A" ? "black": "white" })
-          .attr("text-anchor", "middle")
-          .attr("font-size", "13px")
-          .attr("font-weight", "600")
-          .transition().duration(500)
-          .attr("opacity", 1);
-      })
+      icons.append("text")
+        .text(function(d) { return d.route_short_name})
+        .attr("y", 4)
+        .attr("fill", function(d) {return d.route_color == "FCCC0A" ? "black": "white" })
+        .attr("text-anchor", "middle")
+        .attr("font-size", "10px")
+        .attr("font-weight", "600")
+        .transition().duration(500)
+        .attr("opacity", 1);
     }
 
+    /*** MOVES TIME FORWARD ***/
     function timeStep() {
+      updateTimes();
       kickOffTrains();
-      updateTime();
+      cleanUpTrains();
       setTimeout(function() { timeStep(); }, 500 / timeFactor);
     }
 
-    function updateTime() {
+    function updateTimes() {
       curr_time += 30;
+      updateWaitingTimes();
       $("#time").html(secondsToReadableTime(curr_time));
     }
 
+    /*** KEEPS WAITING TIMES UP TO DATE ***/
+    function updateWaitingTimes() {
+      for (var route_id in trainsOnTracks) {
+        if (trainsOnTracks.hasOwnProperty(route_id)) {
+          trains = trainsOnTracks[route_id];
+          differences = 0;
+          for (var i = 1; i < trains.length; i++) {
+            differences += trains[i].start - trains[i - 1].start;
+          }
+
+          if (trains.length > 1) {
+            avg_difference = differences / (trains.length - 1) 
+            timesSvg.select("#wait_time_" + route_id).text((avg_difference / 60).toFixed(1) + " min");
+          } else {
+            timesSvg.select("#wait_time_" + route_id).text("No trains");
+          }
+        }
+      }
+    }
+
+    /*** FIGURES OUT WHICH TRAINS STARTED IN THE LAST INTERVAL ***/
     function kickOffTrains() {
       markersToStart = [];
       while (tripsByDay[dayOfWeek][lastTrainIndex].start_time <= curr_time) {
@@ -171,21 +194,37 @@
       for (var i = 0; i < markersToStart.length; i++) {
         train_obj = markersToStart[i];
 
+        trainsOnTracks[train_obj.route_id].push({"start": train_obj.start_time, "end": train_obj.end_time});
+
         if (train_obj.has_shape) {
-          path_id = "shape_" + train_obj.trip_id.split("_")[2];
           duration = train_obj.end_time - train_obj.start_time;
 
           // If end time is past midnight, add an artificial day to make the numbers right
           if (duration < 0) {
             duration += (3600 * 24)
           }
-          
-          path_el = d3.select("[id='" + path_id + "']");
+
+          path_el = d3.select("[id='shape_" + train_obj.trip_id.split("_")[2] + "']");
           startMarkerTransition(path_el, train_obj.color, duration * 1000 / (60 * timeFactor));
         }
       }
     }
 
+    /*** REMOVES TRAINS THAT HAVE ENDED FROM THE WAIT TIME ARRAYS ***/
+    function cleanUpTrains() {
+      for(var route_id in trainsOnTracks) {
+        if (trainsOnTracks.hasOwnProperty(route_id)) {
+          trains = trainsOnTracks[route_id];
+          for (var i = trains.length - 1; i >= 0; i--) {
+            if (curr_time >= trains[i].end_time) {
+              trains.splice(i, 1);
+            }
+          }
+        }
+      }
+    }
+
+    /*** HANDLES NITTY GRITTY OF ACTUAL TRANSITIONS***/
     function startMarkerTransition(path, color, duration) {
       var startPoint = pathStartPoint(path);
       var startStopDuration = Math.min(250, duration * .1);
@@ -196,7 +235,7 @@
         .attr("transform", "translate(" + startPoint + ")")
         .attr("fill", "#" + color)
         .transition().duration(startStopDuration)
-          .attr("r", 5)
+          .attr("r", 6)
         .transition().duration(duration - (2 * startStopDuration))
         .ease(d3.easeLinear)
         .attrTween("transform", translateAlong(path.node()))
@@ -223,6 +262,7 @@
       }
     }
   
+    /*** MAKES THE TIME READABLE ***/
     function secondsToReadableTime(time) {
       curr_hour = Math.floor(curr_time / 3600);
       curr_min = Math.floor((curr_time % 3600) / 60)

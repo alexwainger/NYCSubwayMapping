@@ -30,7 +30,7 @@ def main():
 
 	# Adds boolean indicating whether or not there is a shape id associated with the trip
 	# and the color the dot should be
-	with open("data/MTAGTFS/stop_times_small.csv", "rb") as stop_times_small, open("data/MTAGTFS/trips.csv", "rb") as trips, open("data/MTAGTFS/stop_times_shapes_bool.csv", "wb") as output, open("data/MTAGTFS/routes.csv", "rb") as routes:
+	with open("data/MTAGTFS/stop_times_small.csv", "rb") as stop_times_small, open("data/MTAGTFS/trips.csv", "rb") as trips, open("data/MTAGTFS/stop_times_shape_color_route_unsorted.csv", "wb") as output, open("data/MTAGTFS/routes.csv", "rb") as routes:
 		routes_reader = csv.reader(routes);
 		trips_reader = csv.reader(trips);
 		stops_reader = csv.reader(stop_times_small);
@@ -39,24 +39,27 @@ def main():
 		next(routes_reader, None);
 		next(trips_reader, None);
 		stops_header = next(stops_reader);
-		writer.writerow(stops_header + ["has_shape", "color"]);
+		writer.writerow(stops_header + ["has_shape", "color", "route_id"]);
 
 		route_colors = {};
 		for line in routes_reader:
 			route_colors[line[0]] = line[-2];
 
 		trip_has_shape = set();
-		trip_colors = {};
+		tripid_to_routeid = {};
 		for line in trips_reader:
-			trip_colors[line[2]] = route_colors[line[0]];
+			tripid_to_routeid[line[2]] = line[0]
 			if line[-1] != "":
 				trip_has_shape.add(line[2]);
 
 		for line in stops_reader:
-			writer.writerow(line + [line[0] in trip_has_shape, trip_colors[line[0]]]);
+			route_id = tripid_to_routeid[line[0]];
+			if "X" in route_id:
+				route_id = route_id[0];
+			writer.writerow(line + [line[0] in trip_has_shape, route_colors[route_id], route_id]);
 
 	# Sort the lines by starting time
-	with open("data/MTAGTFS/stop_times_shapes_bool.csv", 'rb') as stop_times, open("data/MTAGTFS/stop_times_final_sorted.csv", 'wb') as output:
+	with open("data/MTAGTFS/stop_times_shape_color_route_unsorted.csv", 'rb') as stop_times, open("data/MTAGTFS/stop_times_final_sorted.csv", 'wb') as output:
 		reader = csv.reader(stop_times);
 		writer = csv.writer(output);
 		writer.writerow(next(reader));
